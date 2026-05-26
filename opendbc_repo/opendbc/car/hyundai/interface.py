@@ -172,13 +172,11 @@ class CarInterface(CarInterfaceBase):
     # Common longitudinal control setup
 
     radar_config = get_radar_track_config(ret.carFingerprint)
-    radar_tracks_available = radar_config is not None and radar_config.start_addr in fingerprint[1]
+    radar_tracks_available = radar_config is not None and radar_config.start_addr in fingerprint[radar_config.bus]
     ret.radarUnavailable = not radar_tracks_available
     if ret.flags & HyundaiFlags.NON_SCC:
       ret.alphaLongitudinalAvailable = False
     ret.openpilotLongitudinalControl = alpha_long and ret.alphaLongitudinalAvailable
-    # When longitudinal is enabled, we disable the ADAS ECU which stops radar messages
-    # Force radarUnavailable to prevent CAN Error from missing radar messages
     if ret.openpilotLongitudinalControl and not (candidate == CAR.HYUNDAI_IONIQ_6 and radar_tracks_available):
       ret.radarUnavailable = True
     ret.pcmCruise = not ret.openpilotLongitudinalControl
