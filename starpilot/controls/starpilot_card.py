@@ -134,7 +134,8 @@ class StarPilotCard:
     if self._distance_poll_counter >= 10:
       self._distance_poll_counter = 0
       self._onroad_distance_pressed = self.params_memory.get_bool("OnroadDistanceButtonPressed")
-    starpilotCarState.distancePressed |= self._onroad_distance_pressed
+      starpilotCarState.distancePressed |= self._onroad_distance_pressed
+      self._onroad_distance_pressed = False
 
     if starpilotCarState.distancePressed:
       self.gap_counter += 1
