@@ -24,6 +24,9 @@
 #define HYUNDAI_CANFD_SCC_CONTROL_COMMON_TX_MSGS(e_can, longitudinal) \
   {0x1A0, e_can, 32, .check_relay = (longitudinal)},  /* SCC_CONTROL */ \
 
+#define HYUNDAI_CANFD_MRR35_RADAR_TRACK_START 0x3A5
+#define HYUNDAI_CANFD_MRR35_RADAR_TRACK_END 0x3C4
+
 #define HYUNDAI_CANFD_BLINDSPOT_DASH_TX_MSGS(e_can) \
   {0x1BA, e_can, 24, .check_relay = false},  /* BLINDSPOTS_REAR_CORNERS */ \
   {0x1E5, e_can, 16, .check_relay = false},  /* BLINDSPOTS_FRONT_CORNER_1 */ \
@@ -79,6 +82,15 @@ static uint32_t hyundai_canfd_get_checksum(const CANPacket_t *msg) {
 
 static void hyundai_canfd_rx_all_hook(const CANPacket_t *msg) {
   SAFETY_UNUSED(msg);
+}
+
+static bool hyundai_canfd_fwd_hook(int bus_num, int addr) {
+  const bool mrr35_radar_track = (addr >= HYUNDAI_CANFD_MRR35_RADAR_TRACK_START) && (addr <= HYUNDAI_CANFD_MRR35_RADAR_TRACK_END);
+
+  // On LKA-steering long-control cars using live MRR35 radar tracks, openpilot parses
+  // the tracks directly from bus 0. Forwarding them to bus 2 creates a returned TX copy
+  // of every object frame on the logged CAN stream without adding planner data.
+  return hyundai_longitudinal && hyundai_canfd_lka_steering && (bus_num == 0) && mrr35_radar_track;
 }
 
 static void hyundai_canfd_rx_hook(const CANPacket_t *msg) {
@@ -485,4 +497,5 @@ const safety_hooks hyundai_canfd_hooks = {
   .get_counter = hyundai_canfd_get_counter,
   .get_checksum = hyundai_canfd_get_checksum,
   .compute_checksum = hyundai_common_canfd_compute_checksum,
+  .fwd = hyundai_canfd_fwd_hook,
 };
