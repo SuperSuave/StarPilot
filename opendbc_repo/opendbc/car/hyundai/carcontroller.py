@@ -588,10 +588,20 @@ class CarController(CarControllerBase):
         # PT bus so the radar keeps tracking.
         if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 4 == 0:
           can_sends.append(hyundaicanfd.create_accelerator_brake_alt_spoof(0, self.frame // 4, CS.out.brakePressed, CS.out.gasPressed))
-        # Ioniq 6: ADAS_DRV normally drives the side-mirror BSM lamps via 0x31A/0x3B5.
-        # With ADAS silenced the rear-corner radars still report BCW status on CAN
-        # but nothing commands the mirror lamps, so replay the cluster frames ourselves
-        # using the real rear-BSM signals.
+        # Ioniq 6: when ADAS_DRV is silenced the dash will throw a "Check Blind-Spot Safety System"
+        # fault if the BSM status messages drop or report degraded state. Rebroadcast healthy
+        # 0x1BA/0x1E5 frames using the last seen rear-corner values, overriding the BCW/OSMrrLamp
+        # fields so they reflect the real rear-BSM signals. The OSMrrLamp_* fields are what
+        # actually light the side-mirror lamps.
+        if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 5 == 0:
+          if CS.blindspots_rear_corners_ts > 0 and CS.blindspots_front_corner_1_ts > 0:
+            can_sends.extend(hyundaicanfd.create_blindspot_status_messages(self.packer, self.CAN,
+                                                                           CS.blindspots_rear_corners,
+                                                                           CS.blindspots_front_corner_1,
+                                                                           CS.out.leftBlindspot,
+                                                                           CS.out.rightBlindspot,
+                                                                           CC.leftBlinker,
+                                                                           CC.rightBlinker))
         if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and lane_change_ui_side is None:
           can_sends.extend(hyundaicanfd.create_ioniq_6_cluster_blindspot_messages(self.CAN, self.frame,
                                                                                    CS.out.leftBlindspot,
