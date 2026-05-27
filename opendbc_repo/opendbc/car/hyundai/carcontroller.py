@@ -583,6 +583,11 @@ class CarController(CarControllerBase):
     if self.long_active_ecu:
       if lka_steering:
         can_sends.extend(hyundaicanfd.create_adrv_messages(self.packer, self.CAN, self.frame))
+        # Ioniq 6: front radar treats ADAS_DRV's 0x100 broadcast as its host heartbeat
+        # and stops publishing object tracks when it disappears. Spoof it at 100 Hz on
+        # PT bus so the radar keeps tracking.
+        if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
+          can_sends.append(hyundaicanfd.create_accelerator_brake_alt_spoof(0, self.frame, CS.out.brakePressed, CS.out.gasPressed))
       elif not ccnc_non_hda2:
         can_sends.extend(hyundaicanfd.create_fca_warning_light(self.packer, self.CAN, self.frame))
       if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 5 == 0:

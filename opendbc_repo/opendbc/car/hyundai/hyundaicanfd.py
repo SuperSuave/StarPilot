@@ -702,3 +702,22 @@ def hkg_can_fd_checksum(address: int, sig, d: bytearray) -> int:
   elif len(d) == 32:
     crc ^= 0x9F5B
   return crc
+
+
+# Ioniq 6 / HKG LKA-steering: ADAS_DRV broadcasts ACCELERATOR_BRAKE_ALT (0x100) at 100 Hz on bus 0.
+# The front radar uses this as its "host alive" heartbeat. When we disable ADAS_DRV the
+# radar stops publishing real object tracks. Spoof this message ourselves with valid CRC
+# and current pedal state so the radar keeps tracking.
+# Length is 24 bytes on Ioniq 6 (DBC declares 32 for ICE Hyundais, but EV firmware uses 24).
+# Byte template captured from a real ADAS broadcast; bytes 6-23 appear static / config.
+_ACCEL_BRAKE_ALT_TEMPLATE = bytes.fromhex("000000020000fcff000000000020000055ff000068000000")
+
+def create_accelerator_brake_alt_spoof(bus: int, counter: int, brake_pressed: bool, accelerator_pressed: bool) -> CanData:
+  d = bytearray(_ACCEL_BRAKE_ALT_TEMPLATE)
+  d[2] = counter & 0xFF                              # COUNTER (bit 16, 8-bit)
+  d[4] = (d[4] & ~0x01) | (0x01 if brake_pressed else 0x00)         # BRAKE_PRESSED (bit 32)
+  d[22] = (d[22] & ~0x01) | (0x01 if accelerator_pressed else 0x00) # ACCELERATOR_PEDAL_PRESSED (bit 176)
+  crc = hkg_can_fd_checksum(0x100, None, d)
+  d[0] = crc & 0xFF
+  d[1] = (crc >> 8) & 0xFF
+  return CanData(0x100, bytes(d), bus)
