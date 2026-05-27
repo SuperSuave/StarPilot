@@ -385,10 +385,13 @@ class CarState(CarStateBase):
     if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
       self.left_blindspot_from_radar, self.right_blindspot_from_radar = decode_ioniq_6_blindspot_radar_state(
         cp.vl["BLINDSPOTS_FRONT_CORNER_2"]["SIDE_DETECT_STATE"])
-    # Ioniq 6 reads BSM unconditionally (parser subscription is gated separately on carFingerprint)
-    # because enableBsm fingerprint check (0x1ba in ECAN) can miss the message at fingerprint time
-    # when ADAS is being spoofed during boot.
-    if self.CP.enableBsm or self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
+    if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
+      # With ADAS_DRV disabled the rear-corner radars only talk to ADAS privately —
+      # nothing usable shows up on the bus. The front MRR35's side-detection on
+      # BLINDSPOTS_FRONT_CORNER_2.SIDE_DETECT_STATE is the only BSM source available.
+      ret.leftBlindspot = self.left_blindspot_from_radar
+      ret.rightBlindspot = self.right_blindspot_from_radar
+    elif self.CP.enableBsm:
       ret.leftBlindspot = bool(cp.vl["BLINDSPOTS_REAR_CORNERS"]["BCW_LtIndSta"])
       ret.rightBlindspot = bool(cp.vl["BLINDSPOTS_REAR_CORNERS"]["BCW_RtIndSta"])
 

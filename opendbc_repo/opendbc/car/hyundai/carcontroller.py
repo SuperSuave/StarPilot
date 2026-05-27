@@ -591,8 +591,9 @@ class CarController(CarControllerBase):
         # Ioniq 6: when ADAS_DRV is silenced the dash will throw a "Check Blind-Spot Safety System"
         # fault if the BSM status messages drop or report degraded state. Rebroadcast healthy
         # 0x1BA/0x1E5 frames using the last seen rear-corner values, overriding the BCW/OSMrrLamp
-        # fields so they reflect the real rear-BSM signals. The OSMrrLamp_* fields are what
-        # actually light the side-mirror lamps.
+        # fields. Source of truth for the override is the front radar's SIDE_DETECT_STATE
+        # (via CS.out.leftBlindspot/rightBlindspot) — the rear-corner radars don't broadcast
+        # anything usable on the bus once ADAS is silenced.
         if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 5 == 0:
           if CS.blindspots_rear_corners_ts > 0 and CS.blindspots_front_corner_1_ts > 0:
             can_sends.extend(hyundaicanfd.create_blindspot_status_messages(self.packer, self.CAN,
