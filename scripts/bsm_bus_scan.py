@@ -8,12 +8,17 @@ payload changes during the segment in a way consistent with a BSM lamp toggle
 config broadcasts and high-entropy data streams (radar tracks, IMU, video sync).
 
 Usage:
-    python scripts/bsm_bus_scan.py <segment_range>
-    e.g.: python scripts/bsm_bus_scan.py 78511c37de32c375/00000725--1b47baf2f1/54/60
+    # By segment range (dongle/route/segment)
+    python scripts/bsm_bus_scan.py 78511c37de32c375/00000725--1b47baf2f1/54
+
+    # By local rlog path (already downloaded)
+    python scripts/bsm_bus_scan.py /path/to/00000725--1b47baf2f1--54/rlog.zst
+    python scripts/bsm_bus_scan.py /path/to/00000725--1b47baf2f1--0/   # also accepts the folder
 
 Filters openpilot-spoofed TX (src=128+) from genuine RX.
 """
 
+import os
 import sys
 from collections import defaultdict
 
@@ -30,9 +35,21 @@ def is_boring(addr: int) -> bool:
     return any(lo <= addr <= hi for lo, hi in BORING_RANGES)
 
 
+def resolve_source(arg: str) -> str:
+    # If it points at a directory, find rlog.zst inside.
+    if os.path.isdir(arg):
+        for name in ("rlog.zst", "rlog.bz2", "rlog"):
+            p = os.path.join(arg, name)
+            if os.path.isfile(p):
+                return p
+        raise FileNotFoundError(f"No rlog.* found in directory {arg}")
+    return arg
+
+
 def scan(route: str):
-    print(f"Loading {route} ...")
-    lr = LogReader(route)
+    src = resolve_source(route)
+    print(f"Loading {src} ...")
+    lr = LogReader(src)
 
     # (bus, addr) -> list of (t, payload_bytes)
     samples: dict[tuple[int, int], list[tuple[float, bytes]]] = defaultdict(list)
