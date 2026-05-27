@@ -506,6 +506,11 @@ class CarState(CarStateBase):
       msgs.append(("DRIVE_MODE_EV", 0))  # optional: not all CAN-FD EV variants publish drive mode
       msgs.append(("MANUAL_SPEED_LIMIT_ASSIST", 0))  # optional: used for non-adaptive cruise state and Ioniq 6 i-Pedal latch detection
     msgs.append(("STEERING_WHEEL_MEDIA_BUTTONS", 0))  # optional: absent or slower on some CAN-FD variants
+    if CP.enableBsm:
+      msgs.append(("BLINDSPOTS_REAR_CORNERS", 20))
+    if CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
+      msgs.append(("BLINDSPOTS_FRONT_CORNER_1", 20))
+      msgs.append(("BLINDSPOTS_FRONT_CORNER_2", 20))
     cam_msgs.append(("ADAS_0x380", 0))  # optional: dashboard stop-sign signal, only on ADAS-equipped HKG CANFD
     return {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], msgs, CanBus(CP).ECAN),
