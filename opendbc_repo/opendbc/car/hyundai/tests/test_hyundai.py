@@ -150,6 +150,7 @@ class TestHyundaiFingerprint:
     CP = CarInterface.get_params(CAR.HYUNDAI_IONIQ_6, fingerprint, [], True, False, False, None)
     assert CP.openpilotLongitudinalControl
     assert not CP.radarUnavailable
+    assert get_radar_track_config(CAR.HYUNDAI_IONIQ_6).frequency == 20
 
     for candidate in HYUNDAI_NON_SCC_CARS:
       CP = CarInterface.get_params(candidate, gen_empty_fingerprint(), [], True, False, False, None)
