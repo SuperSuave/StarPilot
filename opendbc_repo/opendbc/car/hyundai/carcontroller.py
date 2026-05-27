@@ -588,6 +588,16 @@ class CarController(CarControllerBase):
         # PT bus so the radar keeps tracking.
         if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 4 == 0:
           can_sends.append(hyundaicanfd.create_accelerator_brake_alt_spoof(0, self.frame // 4, CS.out.brakePressed, CS.out.gasPressed))
+        # Ioniq 6: ADAS_DRV normally drives the side-mirror BSM lamps via 0x31A/0x3B5.
+        # With ADAS silenced the rear-corner radars still report BCW status on CAN
+        # but nothing commands the mirror lamps, so replay the cluster frames ourselves
+        # using the real rear-BSM signals.
+        if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and lane_change_ui_side is None:
+          can_sends.extend(hyundaicanfd.create_ioniq_6_cluster_blindspot_messages(self.CAN, self.frame,
+                                                                                   CS.out.leftBlindspot,
+                                                                                   CS.out.rightBlindspot,
+                                                                                   CC.leftBlinker,
+                                                                                   CC.rightBlinker))
       elif not ccnc_non_hda2:
         can_sends.extend(hyundaicanfd.create_fca_warning_light(self.packer, self.CAN, self.frame))
       if self.frame % 2 == 0:
