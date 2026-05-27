@@ -590,23 +590,6 @@ class CarController(CarControllerBase):
           can_sends.append(hyundaicanfd.create_accelerator_brake_alt_spoof(0, self.frame, CS.out.brakePressed, CS.out.gasPressed))
       elif not ccnc_non_hda2:
         can_sends.extend(hyundaicanfd.create_fca_warning_light(self.packer, self.CAN, self.frame))
-      if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and self.frame % 5 == 0:
-        rear_stale = now_nanos - CS.blindspots_rear_corners_ts > CANFD_BLINDSPOT_STATUS_STALE_NS
-        front_stale = now_nanos - CS.blindspots_front_corner_1_ts > CANFD_BLINDSPOT_STATUS_STALE_NS
-        if CS.blindspots_rear_corners_ts > 0 and CS.blindspots_front_corner_1_ts > 0 and rear_stale and front_stale:
-          can_sends.extend(hyundaicanfd.create_blindspot_status_messages(self.packer, self.CAN,
-                                                                         CS.blindspots_rear_corners,
-                                                                         CS.blindspots_front_corner_1,
-                                                                         CS.left_blindspot_from_radar,
-                                                                         CS.right_blindspot_from_radar,
-                                                                         CC.leftBlinker,
-                                                                         CC.rightBlinker))
-      if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6 and lane_change_ui_side is None:
-        can_sends.extend(hyundaicanfd.create_ioniq_6_cluster_blindspot_messages(self.CAN, self.frame,
-                                                                                 CS.left_blindspot_from_radar,
-                                                                                 CS.right_blindspot_from_radar,
-                                                                                 CC.leftBlinker,
-                                                                                 CC.rightBlinker))
       if self.frame % 2 == 0:
         lead_visible, lead_distance, lead_rel_speed = self._get_canfd_scc_lead_state(CC, CS, now_nanos)
         acc_kwargs = {
