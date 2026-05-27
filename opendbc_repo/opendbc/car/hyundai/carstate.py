@@ -385,7 +385,10 @@ class CarState(CarStateBase):
     if self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
       self.left_blindspot_from_radar, self.right_blindspot_from_radar = decode_ioniq_6_blindspot_radar_state(
         cp.vl["BLINDSPOTS_FRONT_CORNER_2"]["SIDE_DETECT_STATE"])
-    if self.CP.enableBsm:
+    # Ioniq 6 reads BSM unconditionally (parser subscription is gated separately on carFingerprint)
+    # because enableBsm fingerprint check (0x1ba in ECAN) can miss the message at fingerprint time
+    # when ADAS is being spoofed during boot.
+    if self.CP.enableBsm or self.CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
       ret.leftBlindspot = bool(cp.vl["BLINDSPOTS_REAR_CORNERS"]["BCW_LtIndSta"])
       ret.rightBlindspot = bool(cp.vl["BLINDSPOTS_REAR_CORNERS"]["BCW_RtIndSta"])
 
@@ -506,7 +509,7 @@ class CarState(CarStateBase):
       msgs.append(("DRIVE_MODE_EV", 0))  # optional: not all CAN-FD EV variants publish drive mode
       msgs.append(("MANUAL_SPEED_LIMIT_ASSIST", 0))  # optional: used for non-adaptive cruise state and Ioniq 6 i-Pedal latch detection
     msgs.append(("STEERING_WHEEL_MEDIA_BUTTONS", 0))  # optional: absent or slower on some CAN-FD variants
-    if CP.enableBsm:
+    if CP.enableBsm or CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
       msgs.append(("BLINDSPOTS_REAR_CORNERS", 20))
     if CP.carFingerprint == CAR.HYUNDAI_IONIQ_6:
       msgs.append(("BLINDSPOTS_FRONT_CORNER_1", 20))
