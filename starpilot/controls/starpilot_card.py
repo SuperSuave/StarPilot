@@ -39,8 +39,6 @@ class StarPilotCard:
 
     self.gap_counter = 0
     self.cancel_counter = 0
-    self._distance_poll_counter = 0
-    self._onroad_distance_pressed = False
 
     self.always_on_lateral_set = bool(FPCP.alternativeExperience & ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
     self.frogs_go_moo = is_FrogsGoMoo()
@@ -129,13 +127,6 @@ class StarPilotCard:
 
     if sm.updated["starpilotPlan"] or any(be.type == ButtonType.decelCruise for be in carState.buttonEvents):
       self.decel_pressed = any(be.type == ButtonType.decelCruise for be in carState.buttonEvents)
-
-    self._distance_poll_counter += 1
-    if self._distance_poll_counter >= 10:
-      self._distance_poll_counter = 0
-      self._onroad_distance_pressed = self.params_memory.get_bool("OnroadDistanceButtonPressed")
-      starpilotCarState.distancePressed |= self._onroad_distance_pressed
-      self._onroad_distance_pressed = False
 
     if starpilotCarState.distancePressed:
       self.gap_counter += 1
