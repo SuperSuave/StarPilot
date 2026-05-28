@@ -47,6 +47,18 @@ std::atomic<uint64_t> ui_stall_reported_ns{0};
 std::atomic<int> ui_stall_reported_phase{static_cast<int>(UIStallPhase::INIT)};
 std::atomic<pid_t> ui_main_tid{0};
 
+// Per-phase timing breakdown (UI loop profiling). Single-threaded access from
+// the UI main thread; not atomic. Always-on; logs a summary line once a second
+// to swaglog (and thus into the rlog) so the breakdown can be pulled from a
+// recorded route. TEMPORARY DIAGNOSTIC.
+constexpr int UI_PHASE_COUNT = static_cast<int>(UIStallPhase::IDLE) + 1;
+bool ui_profile_enabled = true;
+uint64_t ui_phase_prev_ns = 0;
+int ui_phase_prev = -1;
+double ui_phase_sum_ms[UI_PHASE_COUNT] = {0};
+uint64_t ui_phase_frames = 0;
+uint64_t ui_profile_last_log_ns = 0;
+
 double read_env_double(const char *name, double default_value) {
   const char *value = std::getenv(name);
   if (value == nullptr || *value == '\0') {
@@ -131,6 +143,36 @@ void ui_stall_progress(UIStallPhase phase, uint64_t frame = 0) {
   ui_stall_phase.store(static_cast<int>(phase), std::memory_order_relaxed);
   ui_stall_frame.store(frame, std::memory_order_relaxed);
   ui_stall_last_progress_ns.store(now, std::memory_order_relaxed);
+
+  if (ui_profile_enabled) {
+    // Attribute elapsed time to the phase we were *in* since the last marker.
+    if (ui_phase_prev >= 0 && ui_phase_prev < UI_PHASE_COUNT && now >= ui_phase_prev_ns) {
+      ui_phase_sum_ms[ui_phase_prev] += static_cast<double>(now - ui_phase_prev_ns) / 1e6;
+    }
+    ui_phase_prev = static_cast<int>(phase);
+    ui_phase_prev_ns = now;
+
+    if (phase == UIStallPhase::IDLE) {
+      ui_phase_frames++;
+      if (ui_profile_last_log_ns == 0) ui_profile_last_log_ns = now;
+      if (now - ui_profile_last_log_ns >= 1000000000ULL && ui_phase_frames > 0) {
+        const double f = static_cast<double>(ui_phase_frames);
+        LOGW("UI_PROFILE frames=%llu fps=%.1f | sockets=%.2f state=%.2f status=%.2f watchdog=%.2f paint(emit)=%.2f fs_update=%.2f idle=%.2f ms/frame",
+             static_cast<unsigned long long>(ui_phase_frames),
+             f / (static_cast<double>(now - ui_profile_last_log_ns) / 1e9),
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_SOCKETS)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_STATE)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_STATUS)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_WATCHDOG)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_EMIT)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::AFTER_FS_UPDATE)] / f,
+             ui_phase_sum_ms[static_cast<int>(UIStallPhase::IDLE)] / f);
+        for (int i = 0; i < UI_PHASE_COUNT; i++) ui_phase_sum_ms[i] = 0;
+        ui_phase_frames = 0;
+        ui_profile_last_log_ns = now;
+      }
+    }
+  }
 
   if (ui_stall_reported.exchange(false, std::memory_order_relaxed)) {
     const uint64_t stall_started = ui_stall_reported_ns.load(std::memory_order_relaxed);
