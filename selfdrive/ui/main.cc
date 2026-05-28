@@ -5,6 +5,7 @@
 #include <QTranslator>
 
 #include "common/swaglog.h"
+#include "common/util.h"
 #include "system/hardware/hw.h"
 #include "selfdrive/ui/qt/qt_window.h"
 #include "selfdrive/ui/qt/util.h"
@@ -29,6 +30,15 @@ void waylandAwareMessageHandler(QtMsgType type, const QMessageLogContext &contex
 
 int main(int argc, char *argv[]) {
   setpriority(PRIO_PROCESS, 0, -20);
+
+  // Pin the UI to the little cores (0-3). The realtime control loop
+  // (card/controlsd/selfdrived) runs SCHED_FIFO on core 4; without this pin the
+  // kernel can schedule the UI there, and a UI stall/restart spike preempts
+  // selfdrived, starving its 100 Hz loop and firing the "System Lagging" alert.
+  // Set before any threads spawn so children inherit the affinity.
+  if (!Hardware::PC()) {
+    util::set_core_affinity({0, 1, 2, 3});
+  }
 
   qInstallMessageHandler(waylandAwareMessageHandler);
   initApp(argc, argv);
