@@ -13,6 +13,10 @@ from openpilot.starpilot.common.experimental_state import (
 from openpilot.starpilot.common.starpilot_utilities import is_FrogsGoMoo
 from openpilot.starpilot.common.starpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS
 
+# Consecutive not-pressed card frames (100 Hz) required to confirm a distance-button
+# release. Absorbs a single dropped CAN/IPC frame so one press can't read as two.
+GAP_RELEASE_DEBOUNCE = 3
+
 class StarPilotCard:
   def __init__(self, CP, FPCP):
     self.CP = CP
@@ -38,6 +42,7 @@ class StarPilotCard:
     self.traffic_mode_enabled = False
 
     self.gap_counter = 0
+    self.gap_release_counter = 0
     self.cancel_counter = 0
 
     self.always_on_lateral_set = bool(FPCP.alternativeExperience & ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
@@ -128,20 +133,30 @@ class StarPilotCard:
     if sm.updated["starpilotPlan"] or any(be.type == ButtonType.decelCruise for be in carState.buttonEvents):
       self.decel_pressed = any(be.type == ButtonType.decelCruise for be in carState.buttonEvents)
 
+    # Hold-duration state machine. A single dropped/flickered frame mid-hold must not
+    # be read as a release, or one physical press fires both a phantom short-press and
+    # the real action. Debounce the release: only a sustained low confirms the button is up.
     if starpilotCarState.distancePressed:
       self.gap_counter += 1
-    elif not self.distancePressed_previously:
-      self.gap_counter = 0
+      self.gap_release_counter = 0
+    elif self.gap_counter > 0:
+      self.gap_release_counter += 1
 
     self.distancePressed_previously = starpilotCarState.distancePressed
 
-    if not starpilotCarState.distancePressed and 1 <= self.gap_counter < self.long_press_threshold:
-      self.handle_button_event("distance", sm, starpilot_toggles)
-    elif self.gap_counter == self.long_press_threshold:
+    # Fire long/very-long once, on the frame the hold crosses each threshold (still held).
+    if self.gap_counter == self.long_press_threshold:
       self.handle_button_event("distance_long", sm, starpilot_toggles)
     elif self.gap_counter == self.very_long_press_threshold:
       self.handle_button_event("distance_long", sm, starpilot_toggles)
       self.handle_button_event("distance_very_long", sm, starpilot_toggles)
+
+    # On a debounced release: a hold that never reached long_press_threshold is a short press.
+    if self.gap_release_counter >= GAP_RELEASE_DEBOUNCE:
+      if 1 <= self.gap_counter < self.long_press_threshold:
+        self.handle_button_event("distance", sm, starpilot_toggles)
+      self.gap_counter = 0
+      self.gap_release_counter = 0
 
     cancel_pressed = bool(getattr(starpilotCarState, "cancelPressed", False))
     if cancel_pressed:

@@ -172,6 +172,45 @@ def test_pacifica_hybrid_main_aol_waits_for_set_press(monkeypatch, tmp_path):
   assert ret.alwaysOnLateralEnabled is False
 
 
+def _make_distance_card(monkeypatch, tmp_path):
+  monkeypatch.setattr(spc, "Params", FakeParams)
+  monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
+  monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
+  card = spc.StarPilotCard(SimpleNamespace(brand="hyundai"), SimpleNamespace(alternativeExperience=0))
+  calls = []
+  monkeypatch.setattr(card, "handle_button_event", lambda key, sm, toggles: calls.append(key))
+  return card, calls
+
+
+def _press_distance(card, frames):
+  sm = make_sm()
+  toggles = make_toggles()
+  for pressed in frames:
+    card.update(make_car_state(), SimpleNamespace(distancePressed=pressed), sm, toggles)
+
+
+def test_distance_short_press_fires_once_on_debounced_release(monkeypatch, tmp_path):
+  card, calls = _make_distance_card(monkeypatch, tmp_path)
+  # Held 20 frames, then released and held low long enough to debounce.
+  _press_distance(card, [True] * 20 + [False] * spc.GAP_RELEASE_DEBOUNCE)
+  assert calls == ["distance"]
+
+
+def test_distance_single_frame_glitch_does_not_fire_phantom_short_press(monkeypatch, tmp_path):
+  card, calls = _make_distance_card(monkeypatch, tmp_path)
+  # One dropped frame mid-hold must not register as a release.
+  frames = [True] * 20 + [False] + [True] * 40 + [False] * spc.GAP_RELEASE_DEBOUNCE
+  _press_distance(card, frames)
+  # 60 held frames > long_press_threshold (50): this is a long press, not short, and fires once.
+  assert calls == ["distance_long"]
+
+
+def test_distance_long_press_does_not_also_fire_short(monkeypatch, tmp_path):
+  card, calls = _make_distance_card(monkeypatch, tmp_path)
+  _press_distance(card, [True] * spc.CRUISE_LONG_PRESS + [False] * spc.GAP_RELEASE_DEBOUNCE)
+  assert calls == ["distance_long"]
+
+
 def test_cancel_button_short_press_can_run_independent_mapping(monkeypatch, tmp_path):
   monkeypatch.setattr(spc, "Params", FakeParams)
   monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
