@@ -140,7 +140,6 @@ class CarInterfaceBase(ABC):
 
     self.onroad_distance_button = False
     self.physical_distance_button = False
-    self._onroad_distance_poll_counter = 10
 
   def apply(self, c: structs.CarControl, now_nanos: int | None = None, starpilot_toggles: SimpleNamespace = None) -> tuple[structs.CarControl.Actuators, list[CanData]]:
     if now_nanos is None:
@@ -369,14 +368,11 @@ class CarInterfaceBase(ABC):
       if be.type == ButtonType.gapAdjustCruise:
         self.physical_distance_button = be.pressed
 
-    self._onroad_distance_poll_counter += 1
-    if self._onroad_distance_poll_counter >= 10:
-      self._onroad_distance_poll_counter = 0
-      prev_distance_button = self.onroad_distance_button
-      self.onroad_distance_button = self.params_memory.get_bool("OnroadDistanceButtonPressed")
-      if self.onroad_distance_button != prev_distance_button:
-        onroad_distance_events = create_button_events(self.onroad_distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise})
-        ret.buttonEvents = [*(be.to_dict() for be in ret.buttonEvents), *(be.to_dict() for be in onroad_distance_events)]
+    prev_distance_button = self.onroad_distance_button
+    self.onroad_distance_button = self.params_memory.get_bool("OnroadDistanceButtonPressed")
+    if self.onroad_distance_button != prev_distance_button:
+      onroad_distance_events = create_button_events(self.onroad_distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise})
+      ret.buttonEvents = [*(be.to_dict() for be in ret.buttonEvents), *(be.to_dict() for be in onroad_distance_events)]
 
     # Preserve brand-specific injections (e.g. GM cancel->distance remap hold) while
     # still honoring the onroad virtual distance button and native distance button.
